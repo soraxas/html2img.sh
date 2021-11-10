@@ -1,16 +1,33 @@
 #!/bin/sh
 
+has_cmd() {
+  command -v "$1" >/dev/null
+}
+
+GOOGLE_CHROME_BINARY=google-chrome
+if ! has_cmd "$GOOGLE_CHROME_BINARY"; then
+  GOOGLE_CHROME_BINARY=google-chrome-stable
+  if ! has_cmd "$GOOGLE_CHROME_BINARY"; then
+    echo "No google chrome binary found."
+    exit 1
+  fi
+fi
+
 set -e
 #set -x
 
 for arg; do
   shift
   case "$arg" in
-    --help)
+    --no-auto-display)
+      no_auto_display="true"
+      ;;
+    -h|--help)
       show_help="true"
       ;;
-    --verbose)
+    -v|--verbose)
       export SXS_VERBOSE="true"
+      set -x
       ;;
     --version)
       cat << EOF
@@ -42,6 +59,15 @@ if [ "$#" -ne 1 ] || [ -n "$show_help" ]; then
 	printf '\t%s\n' "If a pipe exists, this script outputs the Base64" >&2
 	printf '\t%s\n' "encoded image directly to stdout. Otherwise, the" >&2
 	printf '\t%s\n' "stdout will output a message containing the filename." >&2
+  printf '\n' >&2
+  printf '%s\n' "Options:" >&2
+	printf '\t%s\t%s\n' "-h, --help" "display help message" >&2
+	printf '\t%s\t%s\n' "--verson" "display version information" >&2
+	printf '\t%s\t%s\n' "-v, --verbose" "be verbose and for debug" >&2
+	printf '\t%s\t%s\n' "--verson" "display version information" >&2
+	printf '\t%s\t%s\n' "--no-auto-display" "" >&2
+	printf '\t\t\t%s\n' "do not attempt to automatically display" >&2
+	printf '\t\t\t%s\n' "the picture" >&2
   exit 1
 fi
 
@@ -66,7 +92,7 @@ fi
 
 tmp_file="$(mktemp)"
 
-cmd="$(echo google-chrome --headless --hide-scrollbars "--screenshot=$tmp_file" --window-size=800,1024 --disable-gpu "$input_file")"
+cmd="$(echo "$GOOGLE_CHROME_BINARY" --headless --hide-scrollbars "--screenshot=$tmp_file" --window-size=800,1024 --disable-gpu "$input_file")"
 
 #verbose=true
 if [ -n "$verbose" ]; then
@@ -78,8 +104,20 @@ fi
 #echo $tmp_file
 
 if [ -t 1 ]; then
-  echo "Saved to $tmp_file"
-  echo "(You can pipe the output to display image directly)"
+  if [ -z "$no_auto_display" ]; then
+    # try to automatically use supported method to display output
+    if has_cmd timg; then
+      to_pipe="timg -"
+    elif has_cmd kitty; then
+      to_pipe="kitty +kitten icat"
+    fi
+  fi
+  if [ -n "$to_pipe" ]; then
+    cat "$tmp_file" | $to_pipe
+  else
+    echo "Saved to $tmp_file"
+    echo "(You can pipe the output to display image directly)"
+  fi
 else
   # inside a pipe
   cat "$tmp_file"
