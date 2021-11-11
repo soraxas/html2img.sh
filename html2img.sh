@@ -16,21 +16,32 @@ fi
 set -e
 #set -x
 
-for arg; do
-  shift
-  case "$arg" in
-    --no-auto-display)
-      no_auto_display="true"
-      ;;
-    -h|--help)
-      show_help="true"
-      ;;
-    -v|--verbose)
-      export SXS_VERBOSE="true"
-      set -x
-      ;;
-    --version)
-      cat << EOF
+filelist=()
+
+width=800
+height=1024
+while test $# -gt 0; do
+    case "$1" in
+      -w|--width)
+        shift
+        width="$1"
+        ;;
+      -h|--height)
+        shift
+        height="$1"
+        ;;
+      --no-auto-display)
+        no_auto_display="true"
+        ;;
+      --help)
+        show_help="true"
+        ;;
+      -v|--verbose)
+        export SXS_VERBOSE="true"
+        set -x
+        ;;
+      --version)
+        cat << EOF
 html_to_img v1.0
 
 Copyright (c) 2021 Tin Lai (@soraxas)
@@ -41,14 +52,19 @@ Written by Tin Lai (@soraxas)
 EOF
       exit
       ;;
-    *)
-      # set back any unused args
-      set -- "$@" "$arg"
-  esac
+      *)
+        # set to file list
+        filelist+=("$1")
+        #set -- "$filelist" "$arg"
+    esac
+    shift
+    if [ -n "$breaknow" ]; then
+      break
+    fi
 done
 
 
-if [ "$#" -ne 1 ] || [ -n "$show_help" ]; then
+if [ "${#filelist[@]}" -ne 1 ] || [ -n "$show_help" ]; then
 	printf '%s\n' "Usage: $(basename "$0") <URL|html_file|md_file>" >&2
 	printf '\n' >&2
 	printf '\t%s\n' "Uses chrome to render the given file/url to image." >&2
@@ -61,38 +77,45 @@ if [ "$#" -ne 1 ] || [ -n "$show_help" ]; then
 	printf '\t%s\n' "stdout will output a message containing the filename." >&2
   printf '\n' >&2
   printf '%s\n' "Options:" >&2
-	printf '\t%s\t%s\n' "-h, --help" "display help message" >&2
+	printf '\t%s\t%s\n' "--help" "display help message" >&2
 	printf '\t%s\t%s\n' "--verson" "display version information" >&2
 	printf '\t%s\t%s\n' "-v, --verbose" "be verbose and for debug" >&2
 	printf '\t%s\t%s\n' "--verson" "display version information" >&2
+  printf '\t%s\t%s\n' "-w, --width" "set width of rendering browser (default: 800)" >&2
+  printf '\t%s\t%s\n' "-h, --height" "set height of rendering browser (default: 1024)" >&2
 	printf '\t%s\t%s\n' "--no-auto-display" "" >&2
 	printf '\t\t\t%s\n' "do not attempt to automatically display" >&2
 	printf '\t\t\t%s\n' "the picture" >&2
   exit 1
 fi
 
-input_file="$1"
+#input_file="$1"
+input_file="${filelist[0]}"
 
-if [ -f "$1" ]; then
-  case "$1" in
+if [ -f "$input_file" ]; then
+  case "$input_file" in
     # for md file, first convert them to a html file using pandoc
     *.md)
+      to_be_converted="$input_file"
       input_file="$(mktemp --suffix=.html)"
-      pandoc "$1" -o "$input_file"
+      pandoc "$to_be_converted" -o "$input_file"
 
       # insert the base directory tag to the beginning of the html
       # for images in realted path
-      basedir_tag="<base href=\"$(realpath "$1")\">"
+      basedir_tag="<base href=\"$(realpath "$to_be_converted")\">"
       sed -i '1s$^$'"$basedir_tag"'\n$' "$input_file"
       ;;
       
   esac
+else
+  printf '%s\n' "File '$input_file' does not exists!"
+  exit 1
 fi
 
 
 tmp_file="$(mktemp)"
 
-cmd="$(echo "$GOOGLE_CHROME_BINARY" --headless --hide-scrollbars "--screenshot=$tmp_file" --window-size=800,1024 --disable-gpu "$input_file")"
+cmd="$(echo "$GOOGLE_CHROME_BINARY" --headless --hide-scrollbars "--screenshot=$tmp_file" --window-size=$width,$height --disable-gpu "$input_file")"
 
 #verbose=true
 if [ -n "$verbose" ]; then
