@@ -4,13 +4,16 @@ has_cmd() {
   command -v "$1" >/dev/null
 }
 
-GOOGLE_CHROME_BINARY=google-chrome
-if ! has_cmd "$GOOGLE_CHROME_BINARY"; then
-  GOOGLE_CHROME_BINARY=google-chrome-stable
-  if ! has_cmd "$GOOGLE_CHROME_BINARY"; then
-    echo "No google chrome binary found."
-    exit 1
+# get a chrome binary that exists
+for bin in google-chrome google-chrome-stable; do
+  if has_cmd "$bin"; then
+    GOOGLE_CHROME_BINARY="$bin"
+    break
   fi
+done
+if [ -z "$GOOGLE_CHROME_BINARY" ]; then
+  echo "No google chrome binary found."
+  exit 1
 fi
 
 set -e
@@ -42,7 +45,7 @@ while test $# -gt 0; do
         ;;
       --version)
         cat << EOF
-html_to_img v1.0
+html_to_img v1.2
 
 Copyright (c) 2021 Tin Lai (@soraxas)
 This is free software; see the source for copying conditions.  There is NO
@@ -95,7 +98,7 @@ input_file="${filelist[0]}"
 if [ -f "$input_file" ]; then
   case "$input_file" in
     # for md file, first convert them to a html file using pandoc
-    *.md)
+    *.md|*.markdown)
       to_be_converted="$input_file"
       input_file="$(mktemp --suffix=.html)"
       pandoc "$to_be_converted" -o "$input_file"
