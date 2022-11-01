@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 has_cmd() {
   command -v "$1" >/dev/null
