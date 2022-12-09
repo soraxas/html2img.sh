@@ -118,13 +118,13 @@ fi
 
 tmp_file="$(mktemp)"
 
-cmd="$(echo "$GOOGLE_CHROME_BINARY" --headless --hide-scrollbars "--screenshot=$tmp_file" --window-size=$width,$height --disable-gpu "$input_file")"
+cmd="'$GOOGLE_CHROME_BINARY' --headless --hide-scrollbars --screenshot='$tmp_file' --window-size='$width,$height' --disable-gpu '$input_file'"
 
 #verbose=true
 if [ -n "$verbose" ]; then
-  $cmd 1>&2
+  eval "$cmd" 1>&2
 else
-  $cmd >/dev/null 2>&1 
+  eval "$cmd" >/dev/null 2>&1 
 fi
 
 #echo $tmp_file
