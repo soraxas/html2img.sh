@@ -67,7 +67,7 @@ EOF
 done
 
 
-if [ "${#filelist[@]}" -ne 1 ] || [ -n "$show_help" ]; then
+if [ "${#filelist[@]}" -lt 1 ] || [ -n "$show_help" ]; then
 	printf '%s\n' "Usage: $(basename "$0") <URL|html_file|md_file>" >&2
 	printf '\n' >&2
 	printf '\t%s\n' "Uses chrome to render the given file/url to image." >&2
@@ -115,10 +115,14 @@ else
   exit 1
 fi
 
+requested_output_file="${filelist[1]}"
+if [ -z "$requested_output_file" ]; then
+  output_file="$(mktemp)"
+else
+  output_file="$requested_output_file"
+fi
 
-tmp_file="$(mktemp)"
-
-cmd="'$GOOGLE_CHROME_BINARY' --headless --hide-scrollbars --screenshot='$tmp_file' --window-size='$width,$height' --disable-gpu '$input_file'"
+cmd="'$GOOGLE_CHROME_BINARY' --headless --hide-scrollbars --screenshot='$output_file' --window-size='$width,$height' --disable-gpu '$input_file'"
 
 #verbose=true
 if [ -n "$verbose" ]; then
@@ -127,25 +131,25 @@ else
   eval "$cmd" >/dev/null 2>&1 
 fi
 
-#echo $tmp_file
-
-if [ -t 1 ]; then
-  if [ -z "$no_auto_display" ]; then
-    # try to automatically use supported method to display output
-    if has_cmd timg; then
-      to_pipe="timg -"
-    elif has_cmd kitty; then
-      to_pipe="kitty +kitten icat"
+#echo $output_file
+if [ -z "$requested_output_file" ]; then
+  if [ -t 1 ]; then
+    if [ -z "$no_auto_display" ]; then
+      # try to automatically use supported method to display output
+      if has_cmd timg; then
+        to_pipe="timg -"
+      elif has_cmd kitty; then
+        to_pipe="kitty +kitten icat"
+      fi
     fi
-  fi
-  if [ -n "$to_pipe" ]; then
-    cat "$tmp_file" | $to_pipe
+    if [ -n "$to_pipe" ]; then
+      cat "$output_file" | $to_pipe
+    else
+      echo "Saved to $output_file"
+      echo "(You can pipe the output to display image directly)"
+    fi
   else
-    echo "Saved to $tmp_file"
-    echo "(You can pipe the output to display image directly)"
+    # inside a pipe
+    cat "$output_file"
   fi
-else
-  # inside a pipe
-  cat "$tmp_file"
 fi
-
