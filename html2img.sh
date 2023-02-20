@@ -23,15 +23,23 @@ filelist=()
 
 width=800
 height=1024
-while test $# -gt 0; do
-    case "$1" in
+EOL=$(echo '\00\07\01\00')
+if [ "$#" != 0 ]; then
+  set -- "$@" "$EOL"
+  while [ "$1" != "$EOL" ]; do
+    opt="$1"; shift
+    case "$opt" in
       -w|--width)
-        shift
         width="$1"
+        shift
         ;;
       -h|--height)
-        shift
         height="$1"
+        shift
+        ;;
+      -o|--output)
+        requested_output_file="$1"
+        shift
         ;;
       --no-auto-display)
         no_auto_display="true"
@@ -55,25 +63,51 @@ Written by Tin Lai (@soraxas)
 EOF
       exit
       ;;
+      --)  # process remaining arguments as positional
+        while [ "$1" != "$EOL" ]; do set -- "$@" "$1"; shift; done;;
+      -*)
+        echo "Error: Unsupported flag '$opt'" >&2
+        exit 1
+        ;;
       *)
-        # set to file list
-        filelist+=("$1")
-        #set -- "$filelist" "$arg"
+        # set back any unused args
+        set -- "$@" "$opt"
     esac
-    shift
-    if [ -n "$breaknow" ]; then
-      break
-    fi
-done
+  done
+  shift # remove the EOL token
+fi
 
 
-if [ "${#filelist[@]}" -lt 1 ] || [ -n "$show_help" ]; then
-	printf '%s\n' "Usage: $(basename "$0") <URL|html_file|md_file>" >&2
+if [ "$#" == 0 ]; then
+  # no input file; check stdin
+  if [ ! -t 0 ]; then
+    # stdin has data
+    tmp_folder="$(mktemp -d)"
+    input_file="$tmp_folder/my.html"
+    # pipe it to a temp file
+    cat /dev/stdin > "$input_file"
+  # else
+    # stdin is empty
+  fi
+elif [ "$#" == 1 ]; then
+  input_file="$1"
+elif [ "$#" == 2 ]; then
+  input_file="$1"
+  requested_output_file="$2"
+else
+  show_help="true"
+fi
+
+
+if [ -z "$input_file" ] || [ -n "$show_help" ]; then
+	printf '%s\n' "Usage: $(basename "$0") [URL|html_file|md_file]" >&2
 	printf '\n' >&2
 	printf '\t%s\n' "Uses chrome to render the given file/url to image." >&2
 	printf '\t%s\n' "If a local markdown file is given, it will first" >&2
 	printf '\t%s\n' "be converted to a html using pandoc before" >&2
 	printf '\t%s\n' "rendering." >&2
+	printf '\n' >&2
+	printf '\t%s\n' "If input file is not given, it will read from stdin (as html)." >&2
 	printf '\n' >&2
 	printf '\t%s\n' "If a pipe exists, this script outputs the Base64" >&2
 	printf '\t%s\n' "encoded image directly to stdout. Otherwise, the" >&2
@@ -92,8 +126,6 @@ if [ "${#filelist[@]}" -lt 1 ] || [ -n "$show_help" ]; then
   exit 1
 fi
 
-#input_file="$1"
-input_file="${filelist[0]}"
 
 if [ -f "$input_file" ]; then
   case "$input_file" in
@@ -110,12 +142,11 @@ if [ -f "$input_file" ]; then
       ;;
       
   esac
-else
-  printf '%s\n' "File '$input_file' does not exists!"
-  exit 1
+# else
+#   printf '%s\n' "File '$input_file' does not exists!"
+#   exit 1
 fi
 
-requested_output_file="${filelist[1]}"
 if [ -z "$requested_output_file" ]; then
   output_file="$(mktemp)"
 else
@@ -152,4 +183,8 @@ if [ -z "$requested_output_file" ]; then
     # inside a pipe
     cat "$output_file"
   fi
+fi
+
+if [ -n "$tmp_folder" ]; then
+  rm -r "$tmp_folder"
 fi
