@@ -148,7 +148,7 @@ if [ -f "$input_file" ]; then
 fi
 
 if [ -z "$requested_output_file" ]; then
-  output_file="$(mktemp)"
+  output_file="$(mktemp --suffix=.png)"
 else
   output_file="$requested_output_file"
 fi
