@@ -5,7 +5,7 @@ has_cmd() {
 }
 
 # get a chrome binary that exists
-for bin in google-chrome google-chrome-stable; do
+for bin in google-chrome google-chrome-stable "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"; do
   if has_cmd "$bin"; then
     GOOGLE_CHROME_BINARY="$bin"
     break
@@ -82,7 +82,7 @@ if [ "$#" == 0 ]; then
   # no input file; check stdin
   if [ ! -t 0 ]; then
     # stdin has data
-    tmp_folder="$(mktemp -d)"
+    tmp_folder="$(my_mktemp true)"
     input_file="$tmp_folder/my.html"
     # pipe it to a temp file
     cat /dev/stdin > "$input_file"
@@ -126,13 +126,39 @@ if [ -z "$input_file" ] || [ -n "$show_help" ]; then
   exit 1
 fi
 
+my_mktemp() {
+  local as_dir="$1"
+  local suffix="$2"
+
+  if ! has_cmd mktemp; then
+    echo "mktemp not found"
+    exit 1
+  fi
+
+  if [ "$as_dir" = "true" ]; then
+    flags="-d"
+  fi
+  if [ -z "$suffix" ]; then
+    mktemp $flags
+    return
+  fi
+
+  # see if this is GNU mktemp
+  if mktemp --version 2>/dev/null | grep -q GNU; then
+    mktemp --suffix="$suffix" $flags
+  else
+    out="$(mktemp $flags)"
+    mv "$out" "$out.$suffix"
+    echo "$out.$suffix"
+  fi
+}
 
 if [ -f "$input_file" ]; then
   case "$input_file" in
     # for md file, first convert them to a html file using pandoc
     *.md|*.markdown)
       to_be_converted="$input_file"
-      input_file="$(mktemp --suffix=.html)"
+      input_file="$(my_mktemp "" .html)"
       pandoc "$to_be_converted" -o "$input_file"
 
       # insert the base directory tag to the beginning of the html
@@ -140,7 +166,7 @@ if [ -f "$input_file" ]; then
       basedir_tag="<base href=\"$(realpath "$to_be_converted")\">"
       sed -i '1s$^$'"$basedir_tag"'\n$' "$input_file"
       ;;
-      
+
   esac
 # else
 #   printf '%s\n' "File '$input_file' does not exists!"
@@ -148,7 +174,7 @@ if [ -f "$input_file" ]; then
 fi
 
 if [ -z "$requested_output_file" ]; then
-  output_file="$(mktemp --suffix=.png)"
+  output_file="$(my_mktemp "" .png)"
 else
   output_file="$requested_output_file"
 fi
@@ -159,7 +185,7 @@ cmd="'$GOOGLE_CHROME_BINARY' --headless --hide-scrollbars --screenshot='$output_
 if [ -n "$verbose" ]; then
   eval "$cmd" 1>&2
 else
-  eval "$cmd" >/dev/null 2>&1 
+  eval "$cmd" >/dev/null 2>&1
 fi
 
 #echo $output_file
